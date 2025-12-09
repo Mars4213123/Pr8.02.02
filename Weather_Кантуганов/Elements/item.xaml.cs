@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -12,24 +10,17 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
-using Weather_Кантуганов.Classes;
-using Weather_Кантуганов.Models;
 
-namespace Weather_Кантуганов
+namespace Weather_Кантуганов.Elements
 {
     /// <summary>
-    /// Interaction logic for MainWindow.xaml
+    /// Логика взаимодействия для item.xaml
     /// </summary>
-    public partial class MainWindow : Window
+    public partial class item : UserControl
     {
-        public MainWindow()
+        public item()
         {
             InitializeComponent();
-            Iint();
-        }
-
-        public async void Iint() {
-            DataResponse response = await GetWeather.Get(58.010461f, 56.229188f);
         }
     }
 }

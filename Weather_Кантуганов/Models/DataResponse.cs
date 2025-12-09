@@ -4,7 +4,7 @@ using System.Text;
 
 namespace Weather_Кантуганов.Models
 {
-    public class DataResponce
+    public class DataResponse
     {
         public List<Forecast> forecasts { get; set; }
         public class Forecast
