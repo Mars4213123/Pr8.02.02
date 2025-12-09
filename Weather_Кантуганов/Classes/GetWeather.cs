@@ -5,7 +5,8 @@ using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Weather_Кантуганов.Models;
 using MySql.Data.MySqlClient;
-using System.Configuration;
+using System.Threading;
+using System.Windows.Threading;
 
 namespace Weather_Кантуганов.Classes
 {
@@ -18,6 +19,8 @@ namespace Weather_Кантуганов.Classes
 
         private static int dailyRequestLimit = 50;
         private static string connectionString;
+        private static DispatcherTimer refreshTimer;
+        private static TimeSpan refreshInterval = TimeSpan.FromMinutes(30);
 
         static GetWeather()
         {
@@ -25,10 +28,85 @@ namespace Weather_Кантуганов.Classes
             {
                 connectionString = "server=localhost;port=3306;database=weather_db;uid=root;password=;";
                 InitializeDatabase();
+                StartAutoRefresh();
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Ошибка инициализации БД: {ex.Message}");
+            }
+        }
+
+        private static void StartAutoRefresh()
+        {
+            if (refreshTimer == null)
+            {
+                refreshTimer = new DispatcherTimer();
+                refreshTimer.Interval = refreshInterval;
+                refreshTimer.Tick += async (sender, e) => await RefreshStaleData();
+                refreshTimer.Start();
+                Console.WriteLine("Автообновление запущено (каждые 30 минут)");
+            }
+        }
+
+        public static void StopAutoRefresh()
+        {
+            refreshTimer?.Stop();
+            refreshTimer = null;
+        }
+
+        private static async Task RefreshStaleData()
+        {
+            try
+            {
+                Console.WriteLine($"Проверка устаревших данных... (Время: {DateTime.Now})");
+
+                if (!CanMakeRequest())
+                {
+                    Console.WriteLine("Достигнут дневной лимит, пропускаем автообновление");
+                    return;
+                }
+
+                List<(string City, string Date)> staleCities = GetStaleCities();
+
+                Console.WriteLine($"Найдено {staleCities.Count} городов для проверки");
+
+                foreach (var (city, cachedDate) in staleCities)
+                {
+                    if (!CanMakeRequest())
+                    {
+                        Console.WriteLine("Достигнут лимит запросов, остановка автообновления");
+                        break;
+                    }
+
+                    if (ShouldUpdateBasedOnDate(cachedDate))
+                    {
+                        try
+                        {
+                            Console.WriteLine($"Автообновление данных для города: {city}");
+
+                            var coordinates = await GetCoordinates(city);
+                            var weather = await GetWeatherFromApi(coordinates.lat, coordinates.lon);
+                            CacheWeatherData(city, weather);
+
+                            Console.WriteLine($"Данные для {city} обновлены успешно");
+                            Thread.Sleep(2000);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Ошибка автообновления {city}: {ex.Message}");
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Данные для {city} еще актуальны (дата: {cachedDate})");
+                    }
+                }
+
+                Console.WriteLine("Автообновление завершено");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Ошибка автообновления: {ex.Message}");
             }
         }
 
@@ -250,30 +328,40 @@ namespace Weather_Кантуганов.Classes
         {
             try
             {
-                using (MySqlConnection connection = new MySqlConnection(connectionString))
+                string cachedDate = GetForecastDateFromCache(city);
+
+                if (!ShouldUpdateBasedOnDate(cachedDate) && IsDataFresh(city))
                 {
-                    connection.Open();
-
-                    string cacheQuery = "SELECT WeatherData FROM WeatherCache WHERE City = @city AND WeatherData != ''";
-
-                    using (MySqlCommand command = new MySqlCommand(cacheQuery, connection))
+                    using (MySqlConnection connection = new MySqlConnection(connectionString))
                     {
-                        command.Parameters.AddWithValue("@city", city);
-                        var cachedData = command.ExecuteScalar();
+                        connection.Open();
 
-                        if (cachedData != null)
+                        string cacheQuery = "SELECT WeatherData FROM WeatherCache WHERE City = @city AND WeatherData != ''";
+
+                        using (MySqlCommand command = new MySqlCommand(cacheQuery, connection))
                         {
-                            var weatherData = cachedData.ToString();
-                            if (!string.IsNullOrEmpty(weatherData))
+                            command.Parameters.AddWithValue("@city", city);
+                            var cachedData = command.ExecuteScalar();
+
+                            if (cachedData != null)
                             {
-                                var data = JsonConvert.DeserializeObject<DataResponse>(weatherData);
-                                if (data != null && data.forecasts != null && data.forecasts.Count > 0)
+                                var weatherData = cachedData.ToString();
+                                if (!string.IsNullOrEmpty(weatherData))
                                 {
-                                    return data;
+                                    var data = JsonConvert.DeserializeObject<DataResponse>(weatherData);
+                                    if (data != null && data.forecasts != null && data.forecasts.Count > 0)
+                                    {
+                                        Console.WriteLine($"Используем кэшированные данные для {city} (дата: {cachedDate})");
+                                        return data;
+                                    }
                                 }
                             }
                         }
                     }
+                }
+                else
+                {
+                    Console.WriteLine($"Данные устарели или требуют обновления для {city} (дата в кэше: {cachedDate ?? "нет"})");
                 }
             }
             catch (Exception ex)
@@ -286,6 +374,7 @@ namespace Weather_Кантуганов.Classes
                 var coordinates = await GetCoordinates(city);
                 var weather = await GetWeatherFromApi(coordinates.lat, coordinates.lon);
                 CacheWeatherData(city, weather);
+                Console.WriteLine($"Новые данные получены для {city}");
                 return weather;
             }
             catch (Exception ex)
@@ -385,6 +474,194 @@ namespace Weather_Кантуганов.Classes
             {
                 Console.WriteLine($"Ошибка получения счетчика: {ex.Message}");
                 return 0;
+            }
+        }
+
+        private static bool IsDataFresh(string city)
+        {
+            try
+            {
+                using (MySqlConnection connection = new MySqlConnection(connectionString))
+                {
+                    connection.Open();
+
+                    string query = @"
+                        SELECT 
+                            WeatherData,
+                            TIMESTAMPDIFF(MINUTE, Timestamp, NOW()) as MinutesAgo
+                        FROM WeatherCache 
+                        WHERE City = @city 
+                        AND WeatherData != ''";
+
+                    using (MySqlCommand command = new MySqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@city", city);
+                        using (var reader = command.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                string weatherData = reader.GetString(0);
+                                int minutesAgo = reader.GetInt32(1);
+
+                                if (!string.IsNullOrEmpty(weatherData))
+                                {
+                                    var data = JsonConvert.DeserializeObject<DataResponse>(weatherData);
+                                    if (data != null && data.forecasts != null && data.forecasts.Count > 0)
+                                    {
+                                        if (minutesAgo < 30)
+                                        {
+                                            return true;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Ошибка проверки свежести данных: {ex.Message}");
+            }
+
+            return false;
+        }
+
+        private static string GetForecastDateFromCache(string city)
+        {
+            try
+            {
+                using (MySqlConnection connection = new MySqlConnection(connectionString))
+                {
+                    connection.Open();
+
+                    string query = @"
+                        SELECT WeatherData FROM WeatherCache 
+                        WHERE City = @city 
+                        AND WeatherData != ''";
+
+                    using (MySqlCommand command = new MySqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@city", city);
+                        var result = command.ExecuteScalar();
+
+                        if (result != null)
+                        {
+                            var weatherData = result.ToString();
+                            if (!string.IsNullOrEmpty(weatherData))
+                            {
+                                var data = JsonConvert.DeserializeObject<DataResponse>(weatherData);
+                                if (data != null && data.forecasts != null && data.forecasts.Count > 0)
+                                {
+                                    return data.forecasts[0].date;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Ошибка получения даты из кэша: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        private static bool ShouldUpdateBasedOnDate(string cachedDate)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(cachedDate))
+                    return true;
+
+                DateTime cachedDateTime = DateTime.Parse(cachedDate);
+                DateTime now = DateTime.Now;
+
+                if (cachedDateTime.Date < now.Date)
+                {
+                    return true;
+                }
+
+                TimeSpan timeDifference = now - cachedDateTime;
+                return timeDifference.TotalHours >= 3;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Ошибка проверки даты: {ex.Message}");
+                return true;
+            }
+        }
+
+        private static List<(string City, string Date)> GetStaleCities()
+        {
+            var staleCities = new List<(string, string)>();
+
+            try
+            {
+                using (MySqlConnection connection = new MySqlConnection(connectionString))
+                {
+                    connection.Open();
+
+                    string query = @"
+                        SELECT City, WeatherData FROM WeatherCache 
+                        WHERE WeatherData != '' 
+                        ORDER BY Timestamp ASC
+                        LIMIT 10";
+
+                    using (MySqlCommand command = new MySqlCommand(query, connection))
+                    {
+                        using (var reader = command.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                string city = reader.GetString(0);
+                                string weatherData = reader.GetString(1);
+
+                                if (!string.IsNullOrEmpty(weatherData))
+                                {
+                                    try
+                                    {
+                                        var data = JsonConvert.DeserializeObject<DataResponse>(weatherData);
+                                        if (data != null && data.forecasts != null && data.forecasts.Count > 0)
+                                        {
+                                            staleCities.Add((city, data.forecasts[0].date));
+                                        }
+                                    }
+                                    catch
+                                    {
+                                        // Пропускаем некорректные данные
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Ошибка получения устаревших городов: {ex.Message}");
+            }
+
+            return staleCities;
+        }
+
+        public static async Task ForceUpdateWeather(string city)
+        {
+            try
+            {
+                if (!CanMakeRequest())
+                {
+                    throw new Exception("Достигнут дневной лимит запросов");
+                }
+
+                var coordinates = await GetCoordinates(city);
+                var weather = await GetWeatherFromApi(coordinates.lat, coordinates.lon);
+                CacheWeatherData(city, weather);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Ошибка принудительного обновления: {ex.Message}");
             }
         }
     }
