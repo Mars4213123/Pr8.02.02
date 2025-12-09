@@ -1,17 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
+﻿using System.Windows;
 using Weather_Кантуганов.Classes;
 using Weather_Кантуганов.Models;
 
@@ -22,6 +9,7 @@ namespace Weather_Кантуганов
     /// </summary>
     public partial class MainWindow : Window
     {
+        DataResponse response;
         public MainWindow()
         {
             InitializeComponent();
@@ -29,7 +17,26 @@ namespace Weather_Кантуганов
         }
 
         public async void Iint() {
-            DataResponse response = await GetWeather.Get(58.010461f, 56.229188f);
+            response = await GetWeather.Get(58.010461f, 56.229188f);
+            foreach (Forecast forecast in response.forecasts) {
+                Days.Items.Add(forecast.date.ToString());
+            }
+            Create(0);
+        }
+        public void Create(int idForecast) {
+            parent.Children.Clear();
+            foreach (Hour forecast in response.forecasts[idForecast].hours)
+            {
+                parent.Children.Add(new Elements.item(forecast));
+            }
+        }
+
+        
+        private void SelectDays(object sender, RoutedEventArgs e) => Create(Days.SelectedIndex);
+
+        private void UpdateWeather(object sender, RoutedEventArgs e)
+        {
+            Iint();
         }
     }
 }

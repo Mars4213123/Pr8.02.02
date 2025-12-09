@@ -15,9 +15,9 @@
         </Grid.ColumnDefinitions>
 
         <Label x:Name="lHour"/>
-        <Label x:Name="lCondition" Grid.ColumnSpan="2"/>
-        <Label x:Name="lHumandity" Grid.ColumnSpan="3"/>
-        <Label x:Name="lPrecType" Grid.ColumnSpan="4"/>
-        <Label x:Name="lTemp" Grid.ColumnSpan="5"/>
+        <Label x:Name="lCondition" Grid.Column="1"/>
+        <Label x:Name="lHumandity" Grid.Column="2"/>
+        <Label x:Name="lPrecType" Grid.Column="3"/>
+        <Label x:Name="lTemp" Grid.Column="4"/>
     </Grid>
 </UserControl>

@@ -10,6 +10,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using Weather_Кантуганов.Models;
 
 namespace Weather_Кантуганов.Elements
 {
@@ -18,9 +19,14 @@ namespace Weather_Кантуганов.Elements
     /// </summary>
     public partial class item : UserControl
     {
-        public item()
+        public item(Hour hour)
         {
             InitializeComponent();
+            lHour.Content = hour.hour;
+            lCondition.Content = hour.ToCondition();
+            lHumandity.Content = hour.humidity + "%";
+            lPrecType.Content = hour.toPrecType();
+            lTemp.Content = hour.temp + "°C";
         }
     }
 }
