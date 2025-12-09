@@ -12,14 +12,12 @@
         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10">
             <TextBox x:Name="txtCity" Width="120" Margin="0,0,10,0" Text="Пермь"/>
             <Button x:Name="btnSearch" Content="Поиск" Width="60" Margin="0,0,10,0" Click="SearchButton_Click"/>
-            <Button x:Name="btnUpdate" Content="Обновить" Width="70" Margin="0,0,20,0" Click="UpdateWeather"/>
             <Label Content="День:" VerticalAlignment="Center" Margin="0,0,5,0"/>
             <ComboBox x:Name="Days" Width="100" SelectionChanged="SelectDays"/>
         </StackPanel>
 
         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="10,0">
             <Label x:Name="lblRequestCount" Content="Запросов: 0/50"/>
-            <Label x:Name="lblStatus" Content="Готово" Margin="20,0,0,0"/>
         </StackPanel>
 
         <ScrollViewer Grid.Row="2" Margin="10">

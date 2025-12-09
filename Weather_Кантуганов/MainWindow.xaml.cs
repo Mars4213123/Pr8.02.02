@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Windows;
-using Org.BouncyCastle.Asn1.Cmp;
 using Weather_Кантуганов.Classes;
 using Weather_Кантуганов.Models;
 
@@ -28,26 +27,27 @@ namespace Weather_Кантуганов
             try
             {
                 btnSearch.IsEnabled = false;
-                lblStatus.Content = "Загрузка...";
 
                 response = await GetWeather.GetWeatherData(city);
 
                 Days.Items.Clear();
                 foreach (Forecast forecast in response.forecasts)
                 {
-                    Days.Items.Add(forecast.date.ToString());
+                    Days.Items.Add(forecast.date);
                 }
 
-                Create(0);
+                if (Days.Items.Count > 0)
+                {
+                    Days.SelectedIndex = 0;
+                    Create(0);
+                }
 
                 int requestCount = GetWeather.GetTodayRequestCount();
-                lblRequestCount.Content = $"Запросов сегодня: {requestCount}/50";
-                lblStatus.Content = "Готово";
+                lblRequestCount.Content = $"Запросов: {requestCount}/50";
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Ошибка: {ex.Message}");
-                lblStatus.Content = "Ошибка";
             }
             finally
             {
@@ -58,7 +58,7 @@ namespace Weather_Кантуганов
         public void Create(int idForecast)
         {
             parent.Children.Clear();
-            if (response.forecasts != null && idForecast < response.forecasts.Count)
+            if (response?.forecasts != null && idForecast < response.forecasts.Count)
             {
                 foreach (Hour forecast in response.forecasts[idForecast].hours)
                 {
@@ -67,10 +67,17 @@ namespace Weather_Кантуганов
             }
         }
 
-        private void SelectDays(object sender, RoutedEventArgs e) => Create(Days.SelectedIndex);
+        private void SelectDays(object sender, RoutedEventArgs e)
+        {
+            if (Days.SelectedIndex >= 0)
+            {
+                Create(Days.SelectedIndex);
+            }
+        }
 
-        private void UpdateWeather(object sender, RoutedEventArgs e) => SearchWeather();
-
-        private void SearchButton_Click(object sender, RoutedEventArgs e) => SearchWeather();
+        private void SearchButton_Click(object sender, RoutedEventArgs e)
+        {
+            SearchWeather();
+        }
     }
 }
