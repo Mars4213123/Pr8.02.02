@@ -12,6 +12,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using Weather_Кантуганов.Classes;
 
 namespace Weather_Кантуганов
 {
@@ -23,6 +24,7 @@ namespace Weather_Кантуганов
         public MainWindow()
         {
             InitializeComponent();
+            GetWeather.Get(58.010461f,56.229188f);
         }
     }
 }
