@@ -14,7 +14,7 @@ namespace Weather_Кантуганов.Classes
         public static string WeatherApiKey = "demo_yandex_weather_api_key_ca6d09349ba0";
 
         private static int dailyRequestLimit = 50;
-        private static string connectionString = "server=MySQL-8.2;port=3306;database=weather_db;uid=root;password=;";
+        private static string connectionString = "server=127.0.0.1;port=3306;database=weather_db;uid=root;password=;";
 
         static GetWeather()
         {
@@ -134,11 +134,9 @@ namespace Weather_Кантуганов.Classes
         {
             Console.WriteLine($"Попытка получить данные для города: {city}");
 
-            // Шаг 1: Пытаемся получить данные из БД
             var dbData = GetWeatherFromDatabase(city);
             if (dbData != null)
             {
-                // Проверяем возраст данных
                 int minutesAgo = GetDataAgeMinutes(city);
                 Console.WriteLine($"Данные из БД найдены, возраст: {minutesAgo} минут");
 
@@ -157,7 +155,6 @@ namespace Weather_Кантуганов.Classes
                 Console.WriteLine($"Данных в БД нет для города: {city}");
             }
 
-            // Шаг 2: Если данных нет или они устарели, запрашиваем из API
             if (!CanMakeRequest())
             {
                 Console.WriteLine("Достигнут дневной лимит запросов (50)");
@@ -175,7 +172,6 @@ namespace Weather_Кантуганов.Classes
                 var coordinates = await GetCoordinates(city);
                 var apiData = await GetWeatherFromApi(coordinates.lat, coordinates.lon);
 
-                // Сохраняем новые данные в БД
                 CacheWeatherData(city, apiData);
                 Console.WriteLine($"Новые данные сохранены в БД для города: {city}");
 
@@ -262,12 +258,11 @@ namespace Weather_Кантуганов.Classes
                 Console.WriteLine($"Ошибка проверки возраста данных: {ex.Message}");
             }
 
-            return -1; // Данных нет
+            return -1;
         }
 
         private static async Task<(float lat, float lon)> GetCoordinates(string city)
         {
-            // Словарь городов с координатами
             var cities = new Dictionary<string, (float, float)>
             {
                 {"Москва", (55.7558f, 37.6173f)},
@@ -287,13 +282,11 @@ namespace Weather_Кантуганов.Classes
                 {"Волгоград", (48.708f, 44.5133f)}
             };
 
-            // Проверяем точное совпадение
             if (cities.ContainsKey(city))
             {
                 return cities[city];
             }
 
-            // Проверяем частичное совпадение
             foreach (var kvp in cities)
             {
                 if (city.ToLower().Contains(kvp.Key.ToLower()) || kvp.Key.ToLower().Contains(city.ToLower()))
